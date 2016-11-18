@@ -1,0 +1,9 @@
+/* CSS for ScratchXBlock */
+
+.scratch_block .count {
+    font-weight: bold;
+}
+
+.scratch_block p {
+    cursor: pointer;
+}

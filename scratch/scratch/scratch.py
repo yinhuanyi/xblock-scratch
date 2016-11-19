@@ -36,11 +36,15 @@ class ScratchXBlock(XBlock):
 
         frag = Fragment(html.format(self=self))
         frag.add_css(self.resource_string("static/css/scratch.css"))
+        frag.add_javascript(self.resource_string("static/js/src/scratch.js"))
+        # Blockly
         frag.add_javascript(self.resource_string("static/js/vendor/blockly/blockly_compressed.js"))
         frag.add_javascript(self.resource_string("static/js/vendor/blockly/blocks_compressed.js"))
         frag.add_javascript(self.resource_string("static/js/vendor/blockly/javascript_compressed.js"))
         frag.add_javascript(self.resource_string("static/js/vendor/blockly/uk.js"))
-        frag.add_javascript(self.resource_string("static/js/src/scratch.js"))
+        # JS Interpreter
+        frag.add_javascript(self.resource_string("static/js/vendor/blockly/acorn_interpreter.js"))
+
         frag.initialize_js('ScratchXBlock')
         return frag
 

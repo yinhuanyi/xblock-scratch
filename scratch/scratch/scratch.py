@@ -3,7 +3,7 @@
 import pkg_resources
 
 from xblock.core import XBlock
-from xblock.fields import Scope, Integer
+from xblock.fields import Scope, Integer, String
 from xblock.fragment import Fragment
 
 
@@ -12,13 +12,16 @@ class ScratchXBlock(XBlock):
     TO-DO: document what your XBlock does.
     """
 
-    # Fields are defined on the class.  You can access them in your code as
-    # self.<fieldname>.
+    MAX_CODE_LENGTH = 16384
 
-    # TO-DO: delete count, and define your own fields.
-    count = Integer(
+    blockly_code = String(
+        default="", scope=Scope.user_state,
+        help="Current user's code"
+    )
+    blockly_code_version = Integer(
         default=0, scope=Scope.user_state,
-        help="A simple counter, to show something happening",
+        help=("Counter, that reflects current version of user's code, "
+              "used to prevent overwriting newer code with an older one")
     )
 
     def resource_string(self, path):
@@ -48,6 +51,34 @@ class ScratchXBlock(XBlock):
         frag.initialize_js('ScratchXBlock')
         return frag
 
+    @XBlock.json_handler
+    def set_blockly_code(self, data, suffix=''):
+        assert isinstance(data['code'], basestring)
+        assert len(data['code']) < ScratchXBlock.MAX_CODE_LENGTH
+
+        assert isinstance(data['version'], (int, long))
+
+        if data['version'] <= self.blockly_code_version:
+            return {
+                "updated": False,
+                "version": self.blockly_code_version
+            }
+
+        self.blockly_code = data['code']
+        self.blockly_code_version += 1
+
+        return {
+            "updated": True,
+            "version": self.blockly_code_version
+        }
+
+    @XBlock.json_handler
+    def get_blockly_code(self, data, suffix=''):
+        return {
+            "code": self.blockly_code,
+            "version": self.blockly_code_version
+        }
+
     # TO-DO: change this handler to perform your own actions.  You may need more
     # than one handler, or you may not need any handlers at all.
     @XBlock.json_handler
@@ -59,7 +90,8 @@ class ScratchXBlock(XBlock):
         assert data['hello'] == 'world'
 
         self.count += 1
-        return {"count": self.count, "url": self.runtime.local_resource_url(self, "public/closure-library/package.json")}
+        return {"count": self.count,
+                "url": self.runtime.local_resource_url(self, "public/closure-library/package.json")}
 
     # TO-DO: change this to create the scenarios you'd like to see in the
     # workbench while developing your XBlock.

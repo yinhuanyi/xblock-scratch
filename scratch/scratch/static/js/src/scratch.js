@@ -7,7 +7,13 @@ function ScratchXBlock(runtime, element) {
         $('.count', element).text(result.count);
     }
 
-    var handlerUrl = runtime.handlerUrl(element, 'increment_count');
+    var SAVE_CODE_URL = runtime.handlerUrl(element, 'set_blockly_code');
+    var LOAD_CODE_URL = runtime.handlerUrl(element, 'get_blockly_code');
+    var DELAY_BETWEEN_BLOCK_EXECUTION = 200;
+    var MAX_STATEMENTS_COUNT = 1000;
+
+    var codeVersion = 0;
+    var activeExecutionTimeout = null;
 
     $('p', element).click(function (eventObject) {
         $.ajax({
@@ -18,23 +24,30 @@ function ScratchXBlock(runtime, element) {
         });
     });
     $("#blocklyCode").click(function (event) {
-        "use strict";
-        var code = Blockly.JavaScript.workspaceToCode(workspace);
-        var MAX_STATEMENTS_COUNT = 1000;
-        var unprocessedVisualizationPresent = false;
+        if (activeExecutionTimeout != null) {
+            clearTimeout(activeExecutionTimeout);
+            activeExecutionTimeout = null;
+            workspace.highlightBlock(null);
+        }
 
+        commitCode();
+        var code = Blockly.JavaScript.workspaceToCode(workspace);
+
+        var unprocessedVisualizationPresent = false;
         $("#blocklyCode").text(code);
         var interpreter = new Interpreter(code, initInterpreterAPI);
         interpretNextSteps();
 
         function interpretNextSteps() {
-            while(interpreter.step()) {
+            while (interpreter.step()) {
                 if (unprocessedVisualizationPresent) {
                     unprocessedVisualizationPresent = false;
-                    setTimeout(interpretNextSteps, 100);
+                    activeExecutionTimeout = setTimeout(interpretNextSteps, DELAY_BETWEEN_BLOCK_EXECUTION);
                     return;
                 }
             }
+            activeExecutionTimeout = null;
+            workspace.highlightBlock(null);
         }
 
         function consoleLog() {
@@ -49,7 +62,7 @@ function ScratchXBlock(runtime, element) {
         function convertInterpreterArgs(interpreterArgs) {
             var arr = [];
             [].push.apply(arr, interpreterArgs);
-            return arr.map(function(arg) {
+            return arr.map(function (arg) {
                 return interpreter.pseudoToNative(arg);
             });
         }
@@ -69,5 +82,64 @@ function ScratchXBlock(runtime, element) {
 
         workspace = Blockly.inject('blocklyDiv',
             {toolbox: document.getElementById('toolbox')});
+
+        fetchCode();
     });
+
+    function commitCode() {
+        $.ajax({
+            type: "POST",
+            url: SAVE_CODE_URL,
+            data: JSON.stringify({
+                code: getCode(),
+                version: incrementCodeVersion()
+            }),
+            success: onCodeCommitted
+        });
+    }
+
+    function onCodeCommitted(result) {
+        if (result.updated) {
+            console.info('code updated');
+        } else {
+            console.warn('code update rejected');
+        }
+        setCodeVersion(result.version);
+    }
+
+    function fetchCode() {
+        $.ajax({
+            type: "POST",
+            url: LOAD_CODE_URL,
+            data: JSON.stringify({}),
+            success: onCodeFetched
+        });
+    }
+
+    function onCodeFetched(result) {
+        setCode(result.code);
+        setCodeVersion(result.version);
+    }
+
+    function setCode(xmlCode) {
+        var xml = Blockly.Xml.textToDom(xmlCode);
+        Blockly.Xml.domToWorkspace(xml, workspace);
+    }
+
+    function getCode() {
+        var xml = Blockly.Xml.workspaceToDom(workspace);
+        return Blockly.Xml.domToText(xml);
+    }
+
+    function setCodeVersion(version) {
+        codeVersion = version;
+    }
+
+    function incrementCodeVersion() {
+        return ++codeVersion;
+    }
+
+    function getCodeVersion() {
+        return codeVersion;
+    }
 }
